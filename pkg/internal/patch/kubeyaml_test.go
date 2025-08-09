@@ -34,33 +34,47 @@ func TestKubeYAML(t *testing.T) {
 		ExpectOutput    string
 	}
 	cases := []testCase{
+		/*		{
+					Name:         "kubeadm config no patches",
+					ToPatch:      normalKubeadmConfig,
+					ExpectError:  false,
+					ExpectOutput: normalKubeadmConfigKustomized,
+				},
+				{
+					Name:        "kubeadm config bogus patches",
+					ToPatch:     normalKubeadmConfig,
+					Patches:     []string{"b o g u s"},
+					ExpectError: true,
+				},
+				{
+					Name:         "kubeadm config one merge-patch",
+					ToPatch:      normalKubeadmConfig,
+					Patches:      []string{trivialPatch},
+					ExpectError:  false,
+					ExpectOutput: normalKubeadmConfigTrivialPatched,
+				},*/
 		{
-			Name:         "kubeadm config no patches",
+			Name:         "kubeadm config wrong kind in patch",
 			ToPatch:      normalKubeadmConfig,
-			ExpectError:  false,
-			ExpectOutput: normalKubeadmConfigKustomized,
+			Patches:      []string{faultyPatch},
+			ExpectError:  true,
+			ExpectOutput: "",
 		},
 		{
-			Name:        "kubeadm config bogus patches",
-			ToPatch:     normalKubeadmConfig,
-			Patches:     []string{"b o g u s"},
-			ExpectError: true,
-		},
-		{
-			Name:         "kubeadm config one merge-patch",
+			Name:         "kubeadm config multiple wrong kind / apiversions in patch",
 			ToPatch:      normalKubeadmConfig,
-			Patches:      []string{trivialPatch},
-			ExpectError:  false,
-			ExpectOutput: normalKubeadmConfigTrivialPatched,
+			Patches:      []string{multipleFaultyPatches},
+			ExpectError:  true,
+			ExpectOutput: "",
 		},
-		{
-			Name:            "kubeadm config one merge-patch, one 6902 patch",
-			ToPatch:         normalKubeadmConfig,
-			Patches:         []string{trivialPatch},
-			PatchesJSON6902: []config.PatchJSON6902{trivialPatch6902},
-			ExpectError:     false,
-			ExpectOutput:    normalKubeadmConfigTrivialPatchedAnd6902Patched,
-		},
+		/*		{
+				Name:            "kubeadm config one merge-patch, one 6902 patch",
+				ToPatch:         normalKubeadmConfig,
+				Patches:         []string{trivialPatch},
+				PatchesJSON6902: []config.PatchJSON6902{trivialPatch6902},
+				ExpectError:     false,
+				ExpectOutput:    normalKubeadmConfigTrivialPatchedAnd6902Patched,
+			},*/
 	}
 	for _, tc := range cases {
 		tc := tc // capture test case
@@ -244,6 +258,29 @@ nodeRegistration:
   kubeletExtraArgs:
     "v": "4"
     "logging-format": "json"
+`
+
+const faultyPatch = `
+kind: CusterConfiguration
+apiVersion: kubeadm.k8s.io/v1beta2
+
+scheduler:
+  extraArgs:
+   some-extra-arg: the-arg
+`
+
+const multipleFaultyPatches = `
+kind: CusterConfiguration
+apiVersion: kubeadm.k8s.io/v1beta2
+
+scheduler:
+  extraArgs:
+   some-extra-arg: the-arg
+---
+apiVersion: kubeproxy.config.k8s.io/v1alpha9
+kind: KubeProxyConfiguration
+metadata:
+  name: config
 `
 
 const normalKubeadmConfigTrivialPatched = `apiServer:

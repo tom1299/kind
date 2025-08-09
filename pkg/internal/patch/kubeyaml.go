@@ -48,14 +48,21 @@ func KubeYAML(toPatch string, patches []string, patches6902 []config.PatchJSON69
 	if err != nil {
 		return "", errors.Wrap(err, "failed to parse JSON 6902 patches")
 	}
+
+	// Track which mergePatches were actually applied to a resource
+	applied := make([]bool, len(mergePatches))
+
 	// apply patches and build result
 	builder := &strings.Builder{}
+
 	for i, r := range resources {
 		// apply merge patches
-		for _, p := range mergePatches {
-			if _, err := r.applyMergePatch(p); err != nil {
+		for j, p := range mergePatches {
+			patched, err := r.applyMergePatch(p)
+			if err != nil {
 				return "", errors.Wrap(err, "failed to apply patch")
 			}
+			applied[j] = applied[j] || patched
 		}
 		// apply RFC 6902 JSON patches
 		for _, p := range json6902patches {
@@ -74,6 +81,26 @@ func KubeYAML(toPatch string, patches []string, patches6902 []config.PatchJSON69
 			}
 		}
 	}
+
+	if err := assertPatchApplication(applied, mergePatches); err != nil {
+		return "", err
+	}
 	// verify that all patches were used
 	return builder.String(), nil
+}
+
+// assertPatchApplication returns an error if any patches failed to be applied to any resource
+func assertPatchApplication(applied []bool, mergePatches []mergePatch) error {
+	patchFailed := false
+	msg := "the following patches failed to be applied to any resource: "
+	for i, ok := range applied {
+		if !ok {
+			msg += "[kind: " + mergePatches[i].matchInfo.Kind + ", apiVersion: " + mergePatches[i].matchInfo.APIVersion + "] "
+			patchFailed = true
+		}
+	}
+	if patchFailed {
+		return errors.New(msg)
+	}
+	return nil
 }
